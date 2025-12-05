@@ -46,7 +46,7 @@ FFM (Field-aware Factorization Machines) 是 FM 的增强版本：
 
 ```bash
 # 克隆项目
-git clone https://github.com/xiongle/alphaFFM-go.git
+git clone https://github.com/gerogexiongle/alphaFFM-go.git
 cd alphaFFM-go
 
 # 编译
