@@ -1,0 +1,17 @@
+# FFM 显式 Field 格式示例数据
+# 格式: label field:feature:value field:feature:value ...
+
+# 用户-商品推荐场景
+1 user:u001:1 item:i101:1 price:high:1 category:electronics:1 brand:apple:1
+0 user:u002:1 item:i102:1 price:low:1 category:clothing:1 brand:nike:1
+1 user:u001:1 item:i103:1 price:medium:1 category:electronics:1 brand:samsung:1
+0 user:u003:1 item:i104:1 price:high:1 category:food:1 brand:nestle:1
+1 user:u002:1 item:i105:1 price:low:1 category:clothing:1 brand:adidas:1
+
+# CTR 预估场景
+1 advertiser:a001:1 publisher:p001:1 creative:banner:1 hour:14:1 weekday:mon:1
+0 advertiser:a002:1 publisher:p002:1 creative:video:1 hour:10:1 weekday:tue:1
+1 advertiser:a001:1 publisher:p003:1 creative:native:1 hour:18:1 weekday:wed:1
+0 advertiser:a003:1 publisher:p001:1 creative:banner:1 hour:22:1 weekday:thu:1
+1 advertiser:a002:1 publisher:p002:1 creative:video:1 hour:15:1 weekday:fri:1
+
