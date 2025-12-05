@@ -231,6 +231,6 @@ MIT License
 
 ## 🙏 致谢
 
-- 基于 [alphaFM-go](https://github.com/xiongle/alphaFM-go) 项目架构
+- 基于 [alphaFM-go](https://github.com/gerogexiongle/alphaFM-go.git) 项目架构
 - FFM算法参考论文: [Field-aware Factorization Machines for CTR Prediction](https://www.csie.ntu.edu.tw/~cjlin/papers/ffm.pdf)
 
