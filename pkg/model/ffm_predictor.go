@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/xiongle/alphaFFM-go/pkg/config"
 	"github.com/xiongle/alphaFFM-go/pkg/sample"
 	"github.com/xiongle/alphaFFM-go/pkg/simd"
 )
@@ -19,6 +20,7 @@ type PredictorOption struct {
 	ThreadsNum      int
 	FactorNum       int
 	SIMDType        simd.VectorOpsType // SIMD优化类型
+	FieldConfigPath string             // 域配置文件路径
 }
 
 // NewPredictorOption 创建默认预测选项
@@ -34,12 +36,13 @@ func NewPredictorOption() *PredictorOption {
 
 // FFMPredictor FFM预测器
 type FFMPredictor struct {
-	model    *PredictModel
-	opt      *PredictorOption
-	outFile  *os.File
-	outMu    sync.Mutex
-	simdOps  simd.VectorOps // SIMD运算实例
-	useSIMD  bool           // 是否使用SIMD
+	model       *PredictModel
+	opt         *PredictorOption
+	outFile     *os.File
+	outMu       sync.Mutex
+	simdOps     simd.VectorOps      // SIMD运算实例
+	useSIMD     bool                // 是否使用SIMD
+	fieldConfig *config.FieldConfig // 域配置
 }
 
 // NewFFMPredictor 创建预测器
@@ -47,6 +50,39 @@ func NewFFMPredictor(opt *PredictorOption) (*FFMPredictor, error) {
 	p := &FFMPredictor{
 		model: NewPredictModel(opt.FactorNum),
 		opt:   opt,
+	}
+
+	// 加载域配置文件
+	if opt.FieldConfigPath != "" {
+		fieldConfig := config.NewFieldConfig()
+		
+		// 尝试JSON格式
+		if err := fieldConfig.LoadFromJSON(opt.FieldConfigPath); err != nil {
+			// 尝试文本格式
+			if err2 := fieldConfig.LoadFromText(opt.FieldConfigPath); err2 != nil {
+				fmt.Printf("Warning: failed to load field config from %s (JSON: %v, Text: %v), using auto mode\n", 
+					opt.FieldConfigPath, err, err2)
+			} else {
+				// 文本格式加载成功
+				fieldConfig.Mode = "config"
+				if err := fieldConfig.Validate(); err != nil {
+					fmt.Printf("Warning: invalid field config: %v, using auto mode\n", err)
+				} else {
+					p.fieldConfig = fieldConfig
+					fmt.Printf("Loaded field config from %s (text format, %d mappings)\n", 
+						opt.FieldConfigPath, len(fieldConfig.FeatureToField))
+				}
+			}
+		} else {
+			// JSON格式加载成功
+			if err := fieldConfig.Validate(); err != nil {
+				fmt.Printf("Warning: invalid field config: %v, using auto mode\n", err)
+			} else {
+				p.fieldConfig = fieldConfig
+				fmt.Printf("Loaded field config from %s (JSON format, mode: %s, %d mappings)\n", 
+					opt.FieldConfigPath, fieldConfig.Mode, len(fieldConfig.FeatureToField))
+			}
+		}
 	}
 
 	// 初始化SIMD
@@ -88,7 +124,16 @@ func (p *FFMPredictor) RunTask(dataBuffer []string) error {
 	results := make([]string, len(dataBuffer))
 
 	for i, line := range dataBuffer {
-		s, err := sample.ParseSample(line)
+		var s *sample.FFMSample
+		var err error
+		
+		// 使用配置文件解析样本
+		if p.fieldConfig != nil {
+			s, err = sample.ParseSampleWithConfig(line, p.fieldConfig)
+		} else {
+			s, err = sample.ParseSample(line)
+		}
+		
 		if err != nil {
 			fmt.Printf("Warning: skip invalid sample: %v\n", err)
 			continue

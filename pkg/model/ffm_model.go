@@ -425,6 +425,11 @@ func (m *FFMModel) OutputModel(modelPath, modelFormat string) error {
 
 // outputTxtModel 输出文本模型
 func (m *FFMModel) outputTxtModel(modelPath string) error {
+	// 检查是否有有效数据
+	if m.MuBias == nil || len(m.FieldNames) == 0 {
+		return fmt.Errorf("no valid samples processed, cannot output model")
+	}
+
 	file, err := os.Create(modelPath)
 	if err != nil {
 		return err

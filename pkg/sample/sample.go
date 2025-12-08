@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	
+	"github.com/xiongle/alphaFFM-go/pkg/config"
 )
 
 // FFMSample FFM样本数据结构
@@ -22,7 +24,17 @@ type FeatureValue struct {
 // ParseSample 解析样本字符串
 // 格式: label field1:feature1:value1 field2:feature2:value2 ...
 // 例如: 1 user:u123:1 item:i456:1 price:p1:0.5
+// 如果提供了 fieldConfig，将使用配置来映射特征到域
 func ParseSample(line string) (*FFMSample, error) {
+	return ParseSampleWithConfig(line, nil)
+}
+
+// ParseSampleWithConfig 使用配置解析样本字符串
+// 支持三种格式:
+// 1. FFM格式: label field1:feature1:value1 field2:feature2:value2 ...
+// 2. FM格式: label feature1:value1 feature2:value2 ...
+// 3. 混合格式: 两种格式可以在同一行混用
+func ParseSampleWithConfig(line string, fieldConfig *config.FieldConfig) (*FFMSample, error) {
 	parts := strings.Fields(line)
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("empty line")
@@ -46,7 +58,7 @@ func ParseSample(line string) (*FFMSample, error) {
 	// 解析特征
 	// 支持两种格式:
 	// 1. field:feature:value (FFM格式)
-	// 2. feature:value (FM格式，自动从feature名提取field)
+	// 2. feature:value (FM格式，根据配置或自动从feature名提取field)
 	for i := 1; i < len(parts); i++ {
 		kv := strings.Split(parts[i], ":")
 		
@@ -62,15 +74,44 @@ func ParseSample(line string) (*FFMSample, error) {
 				return nil, fmt.Errorf("invalid feature value: %v", err)
 			}
 		} else if len(kv) == 2 {
-			// FM格式: feature:value，从feature名提取field
+			// FM格式: feature:value
 			feature = kv[0]
-			// 提取field：如果feature包含下划线或其他分隔符，取第一部分作为field
-			// 例如: sex_male -> field=sex, feature=sex_male
-			field = extractFieldFromFeature(feature)
 			value, err = strconv.ParseFloat(kv[1], 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid feature value: %v", err)
 			}
+			
+			// 处理负数特征（可能是缺失值标记或特殊编码）
+			if strings.HasPrefix(feature, "-") {
+				// 负数特征自动分配到 "special" 域
+				field = "special"
+			} else {
+				// 检查是否是大数字特征（>= 1000000）
+				// 大数字特征可以自动提取域ID，不需要配置文件
+				isLargeNumeric := false
+				if numFeature, err := strconv.ParseUint(feature, 10, 64); err == nil {
+					if numFeature >= 1000000 { // 默认阈值
+						// 大数字特征，自动提取高32位作为域ID
+						fieldID := uint32(numFeature >> 32)
+						field = fmt.Sprintf("field_%d", fieldID)
+						isLargeNumeric = true
+					}
+				}
+				
+				// 如果不是大数字特征，必须有配置文件
+				if !isLargeNumeric {
+					if fieldConfig == nil {
+						return nil, fmt.Errorf("small feature '%s' requires field config file, use -field_config option or use FFM format (field:feature:value)", feature)
+					}
+					
+					// 从配置获取field
+					field, err = fieldConfig.GetFieldForFeature(feature)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get field for feature: %v", err)
+					}
+				}
+			}
+			// 如果是大数字特征或负数特征，field已经在上面设置好了
 		} else {
 			return nil, fmt.Errorf("invalid feature format: %s", parts[i])
 		}

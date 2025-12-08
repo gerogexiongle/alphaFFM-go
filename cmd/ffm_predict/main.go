@@ -22,6 +22,7 @@ options:
 -out <predict_path>: set the predict path
 -mnt <model_number_type>: double or float	default:double
 -simd <simd_type>: SIMD optimization type (scalar, blas)	default:scalar
+-field_config <config_path>: field mapping config file (JSON or text format)
 `
 }
 
@@ -36,6 +37,7 @@ func main() {
 	out := flag.String("out", "", "predict path")
 	mnt := flag.String("mnt", "double", "model number type")
 	simdType := flag.String("simd", "scalar", "SIMD optimization type")
+	fieldConfig := flag.String("field_config", "", "field mapping config file")
 
 	flag.Parse()
 
@@ -46,6 +48,7 @@ func main() {
 	opt.ThreadsNum = *core
 	opt.PredictPath = *out
 	opt.ModelNumberType = *mnt
+	opt.FieldConfigPath = *fieldConfig
 	
 	// 解析SIMD类型
 	parsedSIMD, err := simd.ParseVectorOpsType(*simdType)

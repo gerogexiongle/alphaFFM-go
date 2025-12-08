@@ -1,0 +1,19 @@
+{
+    "mode": "config",
+    "use_prefix": true,
+    "default_field": "",
+    "feature_to_field": {
+        "sex": "user",
+        "age": "user",
+        "user_": "user",
+        "f1": "item",
+        "f2": "item",
+        "f3": "item",
+        "item_": "item",
+        "f5": "context",
+        "f8": "context",
+        "hour": "context",
+        "day": "context",
+        "price": "price"
+    }
+}

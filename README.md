@@ -59,22 +59,60 @@ ls bin/
 
 ### 数据格式
 
-FFM支持两种数据格式：
+FFM支持多种数据格式：
 
-**格式1: Field:Feature:Value（推荐）**
+**格式1: Field:Feature:Value（FFM显式域名格式）**
 ```
 1 user:u123:1 item:i456:1 price:p1:0.5
 0 user:u456:1 item:i789:1 price:p2:0.8
 ```
 
-**格式2: Feature:Value（自动提取field）**
+**格式2: Feature:Value（FM格式，自动提取field）**
 ```
 1 sex:1 age:0.3 f1:1 f3:0.9
 0 sex:0 age:0.7 f2:0.4 f5:0.8
 ```
 
+**格式3: Feature:Value + 配置文件（推荐）**
+
+使用FM格式样本 + 配置文件指定特征到域的映射，既保持了样本的简洁性，又能灵活控制域的划分。
+
+配置文件示例 (`field_config.txt`):
+```
+# 用户特征 -> user域
+sex user
+age user
+
+# 商品特征 -> item域
+f1 item
+f2 item
+f3 item
+
+# 上下文特征 -> context域
+f5 context
+f8 context
+```
+
+**格式4: 数字特征编码（自动域提取）**
+
+当特征名是大数字（>= 2^32）时，自动提取高32位作为域ID：
+
+```
+1 51539607553:1 55834574849:1 60129542145:0.5 sex:1 age:0.3
+```
+
+特征编码规则：
+- 高32位 = 域ID
+- 低32位 = 特征ID
+- `51539607553` (0x0000000C00000001) → 域ID=12 → 域名=`field_12`
+
+这种方式完美支持业务中的特征编码规范，大数字特征无需配置即可自动提取域！
+
+详细说明请参考: [域配置文档](docs/FIELD_CONFIG.md)
+
 ### 训练模型
 
+**基础训练**:
 ```bash
 cat train_data.txt | ./bin/ffm_train \
     -m model.txt \
@@ -85,11 +123,33 @@ cat train_data.txt | ./bin/ffm_train \
     -core 4
 ```
 
+**使用配置文件训练（推荐）**:
+```bash
+# FM格式样本 + 配置文件
+cat train_data_fm.txt | ./bin/ffm_train \
+    -m model.txt \
+    -field_config field_config.txt \
+    -dim 1,1,8 \
+    -core 4
+```
+
 ### 预测
 
+**基础预测**:
 ```bash
 cat test_data.txt | ./bin/ffm_predict \
     -m model.txt \
+    -dim 8 \
+    -out predictions.txt \
+    -core 4
+```
+
+**使用配置文件预测**:
+```bash
+# 必须使用与训练时相同的配置文件
+cat test_data_fm.txt | ./bin/ffm_predict \
+    -m model.txt \
+    -field_config field_config.txt \
     -dim 8 \
     -out predictions.txt \
     -core 4
@@ -115,6 +175,7 @@ cat test_data.txt | ./bin/ffm_predict \
 | -v_l2 | v的L2正则 | 5.0 |
 | -core | 线程数 | 1 |
 | -simd | SIMD优化(scalar/blas) | scalar |
+| -field_config | 域配置文件路径 | 空（使用auto模式） |
 
 ### 预测参数 (ffm_predict)
 
@@ -126,6 +187,7 @@ cat test_data.txt | ./bin/ffm_predict \
 | -out | 输出预测结果路径 | 必填 |
 | -core | 线程数 | 1 |
 | -simd | SIMD优化(scalar/blas) | scalar |
+| -field_config | 域配置文件路径 | 空（使用auto模式） |
 
 ## 🏗️ 项目结构
 
@@ -139,13 +201,19 @@ alphaFFM-go/
 │   │   ├── ffm_model.go         # FFM模型结构
 │   │   ├── ffm_trainer.go       # FTRL训练器
 │   │   └── ffm_predictor.go     # 预测器
+│   ├── config/            # 域配置管理
+│   │   └── field_config.go      # 特征到域的映射配置
 │   ├── frame/             # 多线程框架
 │   ├── sample/            # 样本解析
 │   ├── lock/              # 锁管理
 │   ├── mem/               # 内存池
 │   ├── simd/              # SIMD优化
 │   └── utils/             # 工具函数
+├── docs/                  # 文档
+│   └── FIELD_CONFIG.md   # 域配置文档
 ├── bin/                   # 编译输出
+├── field_config_example.txt   # 配置文件示例（文本格式）
+├── field_config_example.json  # 配置文件示例（JSON格式）
 ├── go.mod                 # Go模块定义
 ├── Makefile              # 编译配置
 └── README.md             # 本文件

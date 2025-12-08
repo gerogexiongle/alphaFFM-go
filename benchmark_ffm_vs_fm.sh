@@ -30,7 +30,7 @@ FM_PREDICTION="$BENCHMARK_DIR/fm_prediction.txt"
 
 # ===== 可调参数（方便快速修改） =====
 # 隐向量维度 (二阶交互的向量维度)
-FACTOR_DIM=64
+FACTOR_DIM=4 # fm太大
 
 # SIMD 模式: "blas" (使用 BLAS 库加速) 或 "scalar" (纯标量计算)
 # FFM 和 FM 都支持 SIMD 优化

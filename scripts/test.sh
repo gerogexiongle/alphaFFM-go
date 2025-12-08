@@ -26,9 +26,30 @@ if [ ! -f "test_data.txt" ]; then
     exit 1
 fi
 
+# 创建临时域名配置文件
+echo -e "${YELLOW}准备: 创建域名配置文件${NC}"
+FIELD_CONFIG="test_field_config.txt"
+cat > $FIELD_CONFIG <<EOF
+# 测试域名配置文件
+# 用户特征 -> user域
+sex user
+age user
+
+# 商品特征 -> item域
+f1 item
+f2 item
+f3 item
+
+# 上下文特征 -> context域
+f5 context
+f8 context
+EOF
+echo -e "${GREEN}✓ 配置文件创建完成: $FIELD_CONFIG${NC}"
+echo ""
+
 echo -e "${YELLOW}测试 1: 基础训练（标量模式）${NC}"
-echo "命令: cat test_data.txt | ./bin/ffm_train -m test_model_scalar.txt -dim 1,1,4 -core 1"
-cat test_data.txt | ./bin/ffm_train -m test_model_scalar.txt -dim 1,1,4 -core 1
+echo "命令: cat test_data.txt | ./bin/ffm_train -m test_model_scalar.txt -field_config $FIELD_CONFIG -dim 1,1,4 -core 1"
+cat test_data.txt | ./bin/ffm_train -m test_model_scalar.txt -field_config $FIELD_CONFIG -dim 1,1,4 -core 1
 if [ -f "test_model_scalar.txt" ]; then
     echo -e "${GREEN}✓ 训练成功${NC}"
     echo "  模型行数: $(wc -l < test_model_scalar.txt)"
@@ -39,8 +60,8 @@ fi
 echo ""
 
 echo -e "${YELLOW}测试 2: 基础预测（标量模式）${NC}"
-echo "命令: cat test_data.txt | ./bin/ffm_predict -m test_model_scalar.txt -dim 4 -out test_pred_scalar.txt -core 1"
-cat test_data.txt | ./bin/ffm_predict -m test_model_scalar.txt -dim 4 -out test_pred_scalar.txt -core 1
+echo "命令: cat test_data.txt | ./bin/ffm_predict -m test_model_scalar.txt -field_config $FIELD_CONFIG -dim 4 -out test_pred_scalar.txt -core 1"
+cat test_data.txt | ./bin/ffm_predict -m test_model_scalar.txt -field_config $FIELD_CONFIG -dim 4 -out test_pred_scalar.txt -core 1
 if [ -f "test_pred_scalar.txt" ]; then
     echo -e "${GREEN}✓ 预测成功${NC}"
     echo "  预测结果:"
@@ -52,8 +73,8 @@ fi
 echo ""
 
 echo -e "${YELLOW}测试 3: 多线程训练${NC}"
-echo "命令: cat test_data.txt | ./bin/ffm_train -m test_model_mt.txt -dim 1,1,4 -core 2"
-cat test_data.txt | ./bin/ffm_train -m test_model_mt.txt -dim 1,1,4 -core 2
+echo "命令: cat test_data.txt | ./bin/ffm_train -m test_model_mt.txt -field_config $FIELD_CONFIG -dim 1,1,4 -core 2"
+cat test_data.txt | ./bin/ffm_train -m test_model_mt.txt -field_config $FIELD_CONFIG -dim 1,1,4 -core 2
 if [ -f "test_model_mt.txt" ]; then
     echo -e "${GREEN}✓ 多线程训练成功${NC}"
 else
@@ -63,8 +84,8 @@ fi
 echo ""
 
 echo -e "${YELLOW}测试 4: 多线程预测${NC}"
-echo "命令: cat test_data.txt | ./bin/ffm_predict -m test_model_mt.txt -dim 4 -out test_pred_mt.txt -core 2"
-cat test_data.txt | ./bin/ffm_predict -m test_model_mt.txt -dim 4 -out test_pred_mt.txt -core 2
+echo "命令: cat test_data.txt | ./bin/ffm_predict -m test_model_mt.txt -field_config $FIELD_CONFIG -dim 4 -out test_pred_mt.txt -core 2"
+cat test_data.txt | ./bin/ffm_predict -m test_model_mt.txt -field_config $FIELD_CONFIG -dim 4 -out test_pred_mt.txt -core 2
 if [ -f "test_pred_mt.txt" ]; then
     echo -e "${GREEN}✓ 多线程预测成功${NC}"
 else
@@ -76,7 +97,7 @@ echo ""
 echo -e "${YELLOW}测试 5: 不同维度训练${NC}"
 for dim in 2 8 16; do
     echo "  维度: $dim"
-    cat test_data.txt | ./bin/ffm_train -m test_model_dim${dim}.txt -dim 1,1,${dim} -core 1 > /dev/null 2>&1
+    cat test_data.txt | ./bin/ffm_train -m test_model_dim${dim}.txt -field_config $FIELD_CONFIG -dim 1,1,${dim} -core 1 > /dev/null 2>&1
     if [ -f "test_model_dim${dim}.txt" ]; then
         echo -e "    ${GREEN}✓ 维度 $dim 训练成功${NC}"
     else
@@ -87,7 +108,7 @@ echo ""
 
 echo -e "${YELLOW}测试 6: FTRL参数测试${NC}"
 echo "  使用不同的正则化参数"
-cat test_data.txt | ./bin/ffm_train -m test_model_reg.txt -dim 1,1,4 \
+cat test_data.txt | ./bin/ffm_train -m test_model_reg.txt -field_config $FIELD_CONFIG -dim 1,1,4 \
     -w_l1 0.5 -w_l2 10.0 -v_l1 0.5 -v_l2 10.0 -core 1 > /dev/null 2>&1
 if [ -f "test_model_reg.txt" ]; then
     echo -e "${GREEN}✓ 正则化参数测试成功${NC}"
@@ -137,7 +158,7 @@ echo -e "${GREEN}✓ 所有预测值在 [0,1] 范围内${NC}"
 echo ""
 
 echo -e "${YELLOW}测试 9: 清理测试文件${NC}"
-rm -f test_model_*.txt test_pred_*.txt
+rm -f test_model_*.txt test_pred_*.txt $FIELD_CONFIG
 echo -e "${GREEN}✓ 测试文件清理完成${NC}"
 echo ""
 
@@ -148,7 +169,7 @@ echo ""
 echo "alphaFFM-go 已准备就绪！"
 echo ""
 echo "使用示例:"
-echo "  训练: cat train.txt | ./bin/ffm_train -m model.txt -dim 1,1,8 -core 4"
-echo "  预测: cat test.txt | ./bin/ffm_predict -m model.txt -dim 8 -out pred.txt -core 4"
+echo "  训练: cat train.txt | ./bin/ffm_train -m model.txt -field_config config.txt -dim 1,1,8 -core 4"
+echo "  预测: cat test.txt | ./bin/ffm_predict -m model.txt -field_config config.txt -dim 8 -out pred.txt -core 4"
 echo ""
 
