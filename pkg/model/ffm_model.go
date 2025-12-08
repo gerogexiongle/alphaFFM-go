@@ -26,6 +26,8 @@ type FFMModelUnit struct {
 	ViMap  map[string][]float64 // field -> 隐向量
 	VNiMap map[string][]float64 // field -> v的n参数
 	VZiMap map[string][]float64 // field -> v的z参数
+	
+	mu sync.RWMutex // 保护 map 的并发访问
 }
 
 // NewFFMModelUnit 创建FFM模型单元
@@ -42,12 +44,26 @@ func NewFFMModelUnit(factorNum int, mean, stdev float64) *FFMModelUnit {
 
 // GetOrInitVi 获取或初始化针对特定field的隐向量
 func (u *FFMModelUnit) GetOrInitVi(field string, factorNum int, mean, stdev float64) []float64 {
+	// 先用读锁尝试获取
+	u.mu.RLock()
+	vi, exists := u.ViMap[field]
+	u.mu.RUnlock()
+	
+	if exists {
+		return vi
+	}
+	
+	// 需要初始化，使用写锁
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	
+	// 双重检查
 	if vi, exists := u.ViMap[field]; exists {
 		return vi
 	}
 	
 	// 初始化新的隐向量
-	vi := make([]float64, factorNum)
+	vi = make([]float64, factorNum)
 	vni := make([]float64, factorNum)
 	vzi := make([]float64, factorNum)
 	
@@ -69,6 +85,9 @@ func (u *FFMModelUnit) IsNonZero() bool {
 	if u.Wi != 0.0 {
 		return true
 	}
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	
 	for _, vi := range u.ViMap {
 		for _, v := range vi {
 			if v != 0.0 {
@@ -81,6 +100,9 @@ func (u *FFMModelUnit) IsNonZero() bool {
 
 // String 转为字符串（用于输出模型）
 func (u *FFMModelUnit) String(fieldNames []string, factorNum int) string {
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	
 	parts := []string{fmt.Sprintf("%.6g", u.Wi)}
 
 	// 按field顺序输出vi

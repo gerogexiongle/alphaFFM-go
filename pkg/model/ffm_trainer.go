@@ -178,18 +178,23 @@ func (t *FFMTrainer) train(y int, x []sample.FeatureValue) {
 				continue
 			}
 			field := x[j].Field
+			
+			// 使用读锁安全地获取map中的向量
+			mu.mu.RLock()
 			vni := mu.VNiMap[field]
 			vzi := mu.VZiMap[field]
+			vi := mu.ViMap[field]
+			mu.mu.RUnlock()
 			
 			for f := 0; f < t.model.FactorNum; f++ {
 				feaLocks[i].Lock()
 				if vni[f] > 0 {
 					if t.opt.ForceVSparse && mu.Wi == 0.0 {
-						mu.ViMap[field][f] = 0.0
+						vi[f] = 0.0
 					} else if math.Abs(vzi[f]) <= t.opt.VL1 {
-						mu.ViMap[field][f] = 0.0
+						vi[f] = 0.0
 					} else {
-						mu.ViMap[field][f] = -1.0 * (1.0 / (t.opt.VL2 + (t.opt.VBeta+math.Sqrt(vni[f]))/t.opt.VAlpha)) *
+						vi[f] = -1.0 * (1.0 / (t.opt.VL2 + (t.opt.VBeta+math.Sqrt(vni[f]))/t.opt.VAlpha)) *
 							(vzi[f] - float64(utils.Sgn(vzi[f]))*t.opt.VL1)
 					}
 				}
@@ -254,8 +259,14 @@ func (t *FFMTrainer) predictScalar(x []sample.FeatureValue, bias float64, theta 
 	// 二阶交互项（FFM）
 	for i := 0; i < xLen; i++ {
 		for j := i + 1; j < xLen; j++ {
+			// 安全地获取vi和vj
+			theta[i].mu.RLock()
 			vi := theta[i].ViMap[x[j].Field]
+			theta[i].mu.RUnlock()
+			
+			theta[j].mu.RLock()
 			vj := theta[j].ViMap[x[i].Field]
+			theta[j].mu.RUnlock()
 			
 			innerProduct := 0.0
 			for f := 0; f < t.model.FactorNum; f++ {
@@ -282,8 +293,14 @@ func (t *FFMTrainer) predictSIMD(x []sample.FeatureValue, bias float64, theta []
 	// 二阶交互项（FFM）- 使用SIMD优化
 	for i := 0; i < xLen; i++ {
 		for j := i + 1; j < xLen; j++ {
+			// 安全地获取vi和vj
+			theta[i].mu.RLock()
 			vi := theta[i].ViMap[x[j].Field]
+			theta[i].mu.RUnlock()
+			
+			theta[j].mu.RLock()
 			vj := theta[j].ViMap[x[i].Field]
+			theta[j].mu.RUnlock()
 			
 			innerProduct := t.simdOps.DotProduct(vi, vj)
 			result += innerProduct * x[i].Value * x[j].Value
@@ -311,12 +328,20 @@ func (t *FFMTrainer) updateVGradientsScalar(theta []*FFMModelUnit, feaLocks []*s
 			}
 			
 			fieldJ := x[j].Field
+			fieldI := x[i].Field
 			xj := x[j].Value
-			vj := theta[j].ViMap[x[i].Field] // vj针对fi的隐向量
 			
+			// 安全地获取vj针对fi的隐向量
+			theta[j].mu.RLock()
+			vj := theta[j].ViMap[fieldI]
+			theta[j].mu.RUnlock()
+			
+			// 安全地获取mu的field向量
+			mu.mu.RLock()
 			vni := mu.VNiMap[fieldJ]
 			vzi := mu.VZiMap[fieldJ]
 			vi := mu.ViMap[fieldJ]
+			mu.mu.RUnlock()
 			
 			for f := 0; f < t.model.FactorNum; f++ {
 				feaLocks[i].Lock()
@@ -352,12 +377,20 @@ func (t *FFMTrainer) updateVGradientsSIMD(theta []*FFMModelUnit, feaLocks []*syn
 			}
 			
 			fieldJ := x[j].Field
+			fieldI := x[i].Field
 			xj := x[j].Value
-			vj := theta[j].ViMap[x[i].Field]
 			
+			// 安全地获取vj针对fi的隐向量
+			theta[j].mu.RLock()
+			vj := theta[j].ViMap[fieldI]
+			theta[j].mu.RUnlock()
+			
+			// 安全地获取mu的field向量
+			mu.mu.RLock()
 			vni := mu.VNiMap[fieldJ]
 			vzi := mu.VZiMap[fieldJ]
 			vi := mu.ViMap[fieldJ]
+			mu.mu.RUnlock()
 			
 			// 计算梯度系数
 			gradCoef := mult * xj * xi
